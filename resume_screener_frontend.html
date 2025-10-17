@@ -1,0 +1,264 @@
+<!-- 
+/************************************************************************************************
+* Smart Resume Screener Frontend (HTML/CSS/JS - Single File)
+* This file handles the user interface and communicates with a local Python Flask backend 
+* running on port 8080.
+* It uses Tailwind CSS for styling and makes API calls using Fetch.
+************************************************************************************************/ 
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Single Candidate Screener</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom styles for better aesthetics and readability */
+        body {
+            background-color: #1f2937; /* Dark background */
+            font-family: 'Inter', sans-serif;
+        }
+        .container-card {
+            background-color: #374151; /* Lighter background for the card */
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.5);
+        }
+        textarea {
+            resize: vertical;
+            min-height: 150px;
+            background-color: #1f2937;
+            color: #f3f4f6;
+            border: 1px solid #4b5563;
+        }
+        .score-box {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-weight: 700;
+        }
+        .shortlisted { background-color: #10b981; color: white; } /* Green */
+        .review { background-color: #f59e0b; color: #1f2937; } /* Amber */
+        .low-match { background-color: #ef4444; color: white; } /* Red */
+        .status-pill {
+            padding: 4px 8px;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 min-h-screen">
+
+    <div class="max-w-4xl mx-auto container-card rounded-xl p-6 md:p-10 text-gray-100">
+
+        <!-- Header -->
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl md:text-4xl font-extrabold text-indigo-400">Single Candidate Screener</h1>
+            <p class="text-sm text-gray-400 mt-1">Analyze one Job Description against one Resume using the local Python Backend.</p>
+        </header>
+
+        <!-- Main Content Layout -->
+        <div class="grid grid-cols-1 gap-8">
+            
+            <!-- Input Panel -->
+            <div id="input-panel" class="space-y-6">
+                <h2 class="text-xl font-bold text-indigo-300 flex items-center mb-4">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m-5 3h4a2 2 0 002-2V7a2 2 0 00-2-2H9a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                    Job Description and Candidate Resume
+                </h2>
+                
+                <div class="space-y-2">
+                    <label for="jd-text" class="block text-sm font-medium text-gray-300">Job Description (JD) Text</label>
+                    <textarea id="jd-text" class="w-full rounded-lg p-3 text-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="Paste the full job description here (e.g., Senior Developer, 5+ years experience, skilled in React and Python)."></textarea>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="block text-sm font-medium text-gray-300">Candidate Resume (Text)</label>
+                    <textarea id="candidate-a-text" class="w-full rounded-lg p-3 text-sm" placeholder="Paste the single candidate's resume text here..."></textarea>
+                </div>
+                
+                <button id="analyze-button" class="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-white font-semibold transition duration-200 shadow-md flex items-center justify-center disabled:opacity-50" onclick="analyzeCandidates()">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 4h6a2 2 0 002-2v-2a2 2 0 00-2-2h-6a2 2 0 00-2 2v2a2 2 0 002 2z"></path></svg>
+                    Analyze & Score Candidate
+                </button>
+                
+                <div id="loading-spinner" class="hidden text-center text-indigo-400">
+                    <svg class="animate-spin h-5 w-5 mr-3 inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Processing... This may take a moment as the LLM performs detailed analysis.
+                </div>
+            </div>
+
+            <!-- Output Panel -->
+            <div id="output-panel">
+                <h2 class="text-xl font-bold text-indigo-300 flex items-center mb-4">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-4m-4 4h4m10-4h4m-4 0v4m-10 0a.75.75 0 01-.75-.75v-1.5a.75.75 0 01.75-.75h4a.75.75 0 01.75.75v1.5a.75.75 0 01-.75.75h-4zM21 3H3v18h18V3z"></path></svg>
+                    Analysis Result
+                </h2>
+                <div id="results-container" class="space-y-6">
+                    <p class="text-gray-400">Enter the Job Description and Resume above, then click Analyze.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Set the backend URL to the new, explicit port 8080
+        const API_URL = 'http://127.0.0.1:8080/analyze';
+
+        // Helper function to create the UI for a single candidate result
+        function createResultCard(candidateId, result) {
+            const isFailed = result.match_score === null || result.match_score === undefined;
+            
+            // Determine display class and status based on score (or failure)
+            let statusClass = 'low-match';
+            let statusText = 'Failed';
+            if (!isFailed) {
+                if (result.match_score >= 8) {
+                    statusClass = 'shortlisted';
+                    statusText = 'SHORTLISTED';
+                } else if (result.match_score >= 3) {
+                    statusClass = 'review';
+                    statusText = 'REVIEW';
+                }
+                // Convert to integer score for display
+                result.match_score = parseInt(result.match_score);
+            }
+
+            // Safely check for undefined properties and provide a friendly default
+            const keyStrengths = result.key_strengths || (isFailed ? "Processing failed. Check Python terminal for errors or ensure the server is running." : "None explicitly identified.");
+            const identifiedGaps = result.identified_gaps || "None identified."; 
+            const finalScore = isFailed ? 'Failed' : `${result.match_score} / 10`;
+            const candidateName = result.candidate_name || candidateId; // Use the provided ID for the name
+
+
+            return `
+                <div class="bg-gray-700 p-4 rounded-xl shadow-lg">
+                    <div class="flex justify-between items-start mb-4">
+                        <h3 class="text-lg font-bold text-white">${candidateName}</h3>
+                        <div class="flex flex-col items-end">
+                            <div class="status-pill ${statusClass}">${statusText}</div>
+                            <div class="text-2xl font-extrabold mt-1 text-white">${finalScore}</div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4 text-sm">
+                        <!-- Key Strengths -->
+                        <div class="bg-gray-800 p-3 rounded-lg">
+                            <h4 class="font-bold text-green-400 mb-1">Key Strengths</h4>
+                            <p class="text-gray-300">${keyStrengths}</p>
+                        </div>
+
+                        <!-- Identified Gaps -->
+                        <div class="bg-gray-800 p-3 rounded-lg">
+                            <h4 class="font-bold text-red-400 mb-1">Identified Gaps</h4>
+                            <p class="text-gray-300">${identifiedGaps}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function analyzeCandidates() {
+            const jdText = document.getElementById('jd-text').value;
+            // Only one candidate text area is used now
+            const candidateAText = document.getElementById('candidate-a-text').value;
+            
+            const resultsContainer = document.getElementById('results-container');
+            const analyzeButton = document.getElementById('analyze-button');
+            const loadingSpinner = document.getElementById('loading-spinner');
+
+            if (!jdText) {
+                // Use a non-blocking UI message instead of alert()
+                resultsContainer.innerHTML = `<p class="text-red-400">Please enter a Job Description.</p>`;
+                return;
+            }
+
+            const candidates = [
+                { id: 'Candidate 1', resume_text: candidateAText },
+            ].filter(c => c.resume_text.trim() !== '');
+
+            if (candidates.length === 0) {
+                 // Use a non-blocking UI message instead of alert()
+                resultsContainer.innerHTML = `<p class="text-red-400">Please enter the Candidate Resume text.</p>`;
+                return;
+            }
+
+            // UI State: Loading
+            analyzeButton.disabled = true;
+            loadingSpinner.classList.remove('hidden');
+            resultsContainer.innerHTML = '';
+            
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    // Send the single candidate in the expected array format to the backend
+                    body: JSON.stringify({
+                        job_description: jdText,
+                        candidates: candidates 
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    // Handle HTTP error status (e.g., 500 from Flask)
+                    const errorDetails = JSON.stringify(data, null, 2);
+                    resultsContainer.innerHTML = `<div class="bg-red-900 p-4 rounded-lg text-white font-mono overflow-x-auto">
+                        <p class="text-lg font-bold mb-2">Backend Processing Error</p>
+                        <p>The backend server returned an error. Check the terminal for Flask logs.</p>
+                        <pre class="mt-2 text-xs">${errorDetails}</pre>
+                    </div>`;
+                    return;
+                }
+
+                if (data.status === 'success' && data.results) {
+                    // Since we only process one candidate, we can display the result directly
+                    const result = data.results[0]; 
+                    
+                    let html = `<p class="text-gray-300 mb-4 font-semibold">Analysis Complete</p>`;
+                    html += createResultCard(result.candidate_id, result.analysis);
+                    
+                    resultsContainer.innerHTML = html;
+
+                } else {
+                    resultsContainer.innerHTML = `<p class="text-red-400">Unknown success status from backend.</p>`;
+                }
+
+            } catch (error) {
+                console.error('Fetch error:', error);
+                resultsContainer.innerHTML = `<div class="bg-red-900 p-4 rounded-lg text-white">
+                    <p class="text-lg font-bold mb-2">Connection Error</p>
+                    <p>Could not connect to the Python backend. Ensure the server is running on port 8080.</p>
+                    <p class="mt-2 text-xs text-red-300">Attempted connection to port 8080. Error: ${error.message}</p>
+                </div>`;
+            } finally {
+                // UI State: Done Loading
+                analyzeButton.disabled = false;
+                loadingSpinner.classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
